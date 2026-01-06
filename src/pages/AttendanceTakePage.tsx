@@ -27,7 +27,7 @@ export const AttendanceTakePage = () => {
   })
   const [bulkModal, setBulkModal] = useState(false)
   const [sessionReady, setSessionReady] = useState(false)
-  const searchTimeout = useRef<NodeJS.Timeout | null>(null)
+  const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const formatAMOnly = (date: Date) => {
     let h = date.getHours()
