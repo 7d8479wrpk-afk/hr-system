@@ -14,8 +14,8 @@ npm install
 
 2) Create environment file
 ```
-VITE_SUPABASE_URL=https://flqfcbhqlzosojbryaxy.supabase.co
-VITE_SUPABASE_ANON_KEY=sb_publishable_ilR2Q1GtGBSqj_ZhG03L8A_AHxz_ajr
+VITE_SUPABASE_URL=your-supabase-url
+VITE_SUPABASE_ANON_KEY=your-anon-key
 ```
 
 3) Apply database schema in Supabase SQL editor

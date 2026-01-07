@@ -7,6 +7,7 @@ import { AttendanceTakePage } from './pages/AttendanceTakePage'
 import { EmployeeCreatePage } from './pages/EmployeeCreatePage'
 import { EmployeeProfilePage } from './pages/EmployeeProfilePage'
 import { EmployeeEditPage } from './pages/EmployeeEditPage'
+import { EmailConfirmed } from './pages/EmailConfirmed'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { AppLayout } from './components/AppLayout'
 
@@ -20,6 +21,8 @@ const App = () => {
   return (
     <Routes>
       <Route path="/auth" element={<AuthPage />} />
+      <Route path="/email-confirmed" element={<EmailConfirmed />} />
+      <Route path="/auth/confirmed" element={<EmailConfirmed />} />
       <Route
         path="/employees"
         element={
@@ -76,6 +79,7 @@ const App = () => {
           </AdminShell>
         }
       />
+      <Route path="/" element={<Navigate to="/employees" replace />} />
       <Route path="*" element={<Navigate to="/employees" replace />} />
     </Routes>
   )

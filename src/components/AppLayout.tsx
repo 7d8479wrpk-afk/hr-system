@@ -1,16 +1,29 @@
 import { Link, useLocation } from 'react-router-dom'
+import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../lib/auth'
 import logo from '../assets/msd-logo.png'
 
 export const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const { signOut, profile } = useAuth()
   const location = useLocation()
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement | null>(null)
 
   const navItems = [
     { to: '/employees', label: 'Employees' },
     { to: '/attendance', label: 'Attendance' },
     { to: '/terminated', label: 'Terminated' },
   ]
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
 
   return (
     <div className="min-h-screen bg-white text-slate-900">
@@ -38,16 +51,58 @@ export const AppLayout = ({ children }: { children: React.ReactNode }) => {
             </nav>
           </div>
           <div className="flex items-center gap-3 text-sm">
-            <div className="rounded-full bg-primary-50 px-3 py-1 text-primary-800">
+            <div className="hidden sm:block rounded-full bg-primary-50 px-3 py-1 text-primary-800">
               {profile?.is_admin ? 'Admin' : 'User'}
             </div>
+            <div className="hidden sm:block">
+              <button
+                onClick={() => signOut()}
+                className="rounded-md border border-slate-200 px-3 py-2 text-slate-700 transition hover:bg-slate-50"
+              >
+                Sign out
+              </button>
+            </div>
             <button
-              onClick={() => signOut()}
-              className="rounded-md border border-slate-200 px-3 py-2 text-slate-700 transition hover:bg-slate-50"
+              onClick={() => setMenuOpen((prev) => !prev)}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-200 text-slate-700 sm:hidden"
+              aria-label="Menu"
             >
-              Sign out
+              ☰
             </button>
           </div>
+        </div>
+        <div
+          ref={menuRef}
+          className={`sm:hidden ${menuOpen ? 'block' : 'hidden'} border-t border-slate-200 bg-white shadow-md`}
+        >
+          <nav className="flex flex-col gap-1 px-4 py-3 text-sm font-medium text-slate-700">
+            {navItems.map((item) => (
+              <Link
+                key={item.to}
+                to={item.to}
+                onClick={() => setMenuOpen(false)}
+                className={`rounded-md px-3 py-2 transition hover:bg-primary-50 hover:text-primary-700 ${
+                  location.pathname.startsWith(item.to)
+                    ? 'bg-primary-50 text-primary-700'
+                    : ''
+                }`}
+              >
+                {item.label}
+              </Link>
+            ))}
+            <div className="mt-2 flex items-center justify-between rounded-md bg-primary-50 px-3 py-2">
+              <span className="text-primary-800">{profile?.is_admin ? 'Admin' : 'User'}</span>
+              <button
+                onClick={() => {
+                  setMenuOpen(false)
+                  signOut()
+                }}
+                className="rounded border border-primary-100 px-2 py-1 text-primary-700 transition hover:bg-primary-100"
+              >
+                Sign out
+              </button>
+            </div>
+          </nav>
         </div>
       </header>
       <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>
