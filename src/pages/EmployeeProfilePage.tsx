@@ -79,7 +79,7 @@ export const EmployeeProfilePage = () => {
           .eq('employee_id', id)
           .is('end_date', null)
           .limit(1)
-          .single(),
+          .maybeSingle(),
         supabase
           .from('employment_periods')
           .select('*')
@@ -87,7 +87,7 @@ export const EmployeeProfilePage = () => {
           .not('end_date', 'is', null)
           .order('end_date', { ascending: false })
           .limit(1)
-          .single(),
+          .maybeSingle(),
       ])
 
       if (empResponse.error) {
@@ -110,8 +110,19 @@ export const EmployeeProfilePage = () => {
         setSeparationHistory(latestSeparation ?? null)
       }
 
-      setActivePeriod(openPeriodResponse.data ?? null)
-      setLastClosedPeriod(closedPeriodResponse.data ?? null)
+      if (openPeriodResponse.error) {
+        console.error(openPeriodResponse.error.message)
+        setActivePeriod(null)
+      } else {
+        setActivePeriod(openPeriodResponse.data ?? null)
+      }
+
+      if (closedPeriodResponse.error) {
+        console.error(closedPeriodResponse.error.message)
+        setLastClosedPeriod(null)
+      } else {
+        setLastClosedPeriod(closedPeriodResponse.data ?? null)
+      }
     } catch (e: any) {
       console.error('Load employee error', e?.message ?? e)
       setError(e?.message ?? 'Failed to load employee')
