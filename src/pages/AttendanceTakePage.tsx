@@ -335,19 +335,14 @@ export const AttendanceTakePage = () => {
                       }}
                       onChange={(e) => {
                         const val = e.target.value
-                        if (presentSelected) {
-                          saveAttendance(emp.id, 'present', val)
-                        } else {
-                          setAttendance((prev) => ({
-                            ...prev,
-                            [emp.id]: { status: 'present', start_time: val },
-                          }))
-                        }
+                        setAttendance((prev) => ({
+                          ...prev,
+                          [emp.id]: { status: 'present', start_time: val },
+                        }))
                       }}
                       onBlur={(e) => {
-                        if (e.target.value && !presentSelected) {
-                          saveAttendance(emp.id, 'present', e.target.value)
-                        }
+                        const val = e.target.value
+                        if (val) saveAttendance(emp.id, 'present', val)
                       }}
                       disabled={isSaving}
                       className="w-28 rounded border border-slate-200 px-2 py-1 text-sm disabled:cursor-not-allowed disabled:bg-slate-100"
