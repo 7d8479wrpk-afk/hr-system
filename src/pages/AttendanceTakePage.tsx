@@ -294,7 +294,6 @@ export const AttendanceTakePage = () => {
             {(filteredEmployees ?? []).map((emp, idx) => {
               const att = attendance[emp.id]
               const currentStatus = att?.status
-              const presentSelected = currentStatus === 'present'
               const timeValue = att?.start_time ?? ''
               const timeValueForInput = timeValue ? timeValue.slice(0, 5) : ''
               return (
