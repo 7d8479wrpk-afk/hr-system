@@ -18,6 +18,8 @@ export const AttendanceTakePage = () => {
   const [search, setSearch] = useState('')
   const [searchInput, setSearchInput] = useState('')
   const [toast, setToast] = useState<string | null>(null)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
   const [bulkTime, setBulkTime] = useState(() => {
     let h = new Date().getHours()
     const m = new Date().getMinutes().toString().padStart(2, '0')
@@ -52,57 +54,96 @@ export const AttendanceTakePage = () => {
     setTimeout(() => setToast(null), 1800)
   }
 
+  const normalizeTime = (value?: string | null) => {
+    if (!value) return null
+    const [h = '', m = '', s = '00'] = value.split(':')
+    if (!h || !m) return null
+    return `${h.padStart(2, '0')}:${m.padStart(2, '0')}:${s.padStart(2, '0')}`
+  }
+
   const loadEmployees = async () => {
-    const { data, error } = await supabase
-      .from('employees')
-      .select('id, full_name, status')
-      .not('status', 'in', '("resigned","terminated")')
-      .order('employee_no', { ascending: true })
-    if (error) {
-      console.error(error.message)
-      return
+    try {
+      const { data, error } = await supabase
+        .from('employees')
+        .select('id, full_name, status')
+        .not('status', 'in', '("resigned","terminated")')
+        .order('employee_no', { ascending: true })
+      if (error) {
+        console.error(error.message)
+        setErrorMessage(error.message)
+        return
+      }
+      setEmployees((data as Employee[]) ?? [])
+    } catch (err) {
+      console.error(err)
+      setErrorMessage('Failed to load employees.')
     }
-    setEmployees((data as Employee[]) ?? [])
   }
 
   const loadAttendanceForDate = async (d: string) => {
-    const { data, error } = await supabase
-      .from('attendance_records')
-      .select('employee_id, status, start_time')
-      .eq('day', d)
-    if (error) {
-      console.error(error.message)
-      return
+    try {
+      const { data, error } = await supabase
+        .from('attendance_records')
+        .select('employee_id, status, start_time')
+        .eq('day', d)
+      if (error) {
+        console.error(error.message)
+        setErrorMessage(error.message)
+        return
+      }
+      const map: Record<string, { status: AttendanceStatus; start_time: string | null }> = {}
+      ;(data ?? []).forEach((row: any) => {
+        map[row.employee_id] = { status: row.status, start_time: row.start_time }
+      })
+      setAttendance(map)
+    } catch (err) {
+      console.error(err)
+      setErrorMessage('Failed to load attendance.')
     }
-    const map: Record<string, { status: AttendanceStatus; start_time: string | null }> = {}
-    ;(data ?? []).forEach((row: any) => {
-      map[row.employee_id] = { status: row.status, start_time: row.start_time }
-    })
-    setAttendance(map)
   }
 
   useEffect(() => {
     let isMounted = true
     const start = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-      if (!isMounted) return
-      if (session) {
-        setSessionReady(true)
-        loadEmployees()
+      try {
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession()
+        if (!isMounted) return
+        if (error) {
+          console.error(error.message)
+          setErrorMessage(error.message)
+          return
+        }
+        if (session) {
+          setSessionReady(true)
+          loadEmployees()
+        }
+      } catch (err) {
+        console.error(err)
+        setErrorMessage('Failed to load session.')
       }
     }
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) {
-        setSessionReady(true)
-        loadEmployees()
-      }
-    })
+    let sub = { subscription: { unsubscribe: () => {} } }
+    try {
+      const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+        if (session) {
+          setSessionReady(true)
+          loadEmployees()
+        }
+      })
+      sub = data
+    } catch (err) {
+      console.error(err)
+      setErrorMessage('Failed to subscribe to auth changes.')
+    }
     start()
     return () => {
       isMounted = false
-      sub.subscription.unsubscribe()
+      if ('subscription' in sub) {
+        sub.subscription.unsubscribe()
+      }
     }
   }, [])
 
@@ -132,40 +173,62 @@ export const AttendanceTakePage = () => {
     start_time: string | null = null,
   ) => {
     setAttendance((prev) => ({ ...prev, [employeeId]: { status, start_time } }))
-    const { error } = await supabase
-      .from('attendance_records')
-      .upsert(
-        { employee_id: employeeId, day: date, status, start_time },
-        { onConflict: 'employee_id,day' },
-      )
-    if (error) {
-      console.error(error.message)
+    setIsSaving(true)
+    try {
+      const normalizedTime = normalizeTime(start_time)
+      const { error } = await supabase
+        .from('attendance_records')
+        .upsert(
+          { employee_id: employeeId, day: date, status, start_time: normalizedTime },
+          { onConflict: 'employee_id,day' },
+        )
+      if (error) {
+        console.error(error.message)
+        setErrorMessage(error.message)
+        showToast('Error saving')
+      } else {
+        showToast('Saved')
+      }
+    } catch (err) {
+      console.error(err)
+      setErrorMessage('Failed to save attendance.')
       showToast('Error saving')
-    } else {
-      showToast('Saved')
+    } finally {
+      setIsSaving(false)
     }
   }
 
   const markAllPresent = async () => {
     const time = bulkTime || null
-    const rows = employees.map((e) => ({
+    const normalizedTime = normalizeTime(time)
+    const rows = (employees ?? []).map((e) => ({
       employee_id: e.id,
       day: date,
       status: 'present' as AttendanceStatus,
-      start_time: time,
+      start_time: normalizedTime,
     }))
     // optimistic
     const newState: Record<string, { status: AttendanceStatus; start_time: string | null }> = { ...attendance }
-    employees.forEach((e) => {
+    ;(employees ?? []).forEach((e) => {
       newState[e.id] = { status: 'present', start_time: time }
     })
     setAttendance(newState)
-    const { error } = await supabase.from('attendance_records').upsert(rows, { onConflict: 'employee_id,day' })
-    if (error) {
-      console.error(error.message)
+    setIsSaving(true)
+    try {
+      const { error } = await supabase.from('attendance_records').upsert(rows, { onConflict: 'employee_id,day' })
+      if (error) {
+        console.error(error.message)
+        setErrorMessage(error.message)
+        showToast('Error saving')
+      } else {
+        showToast('All marked present')
+      }
+    } catch (err) {
+      console.error(err)
+      setErrorMessage('Failed to save attendance.')
       showToast('Error saving')
-    } else {
-      showToast('All marked present')
+    } finally {
+      setIsSaving(false)
     }
     setBulkModal(false)
   }
@@ -203,12 +266,19 @@ export const AttendanceTakePage = () => {
               setBulkTime(roundedNow())
               setBulkModal(true)
             }}
-            className="rounded bg-primary-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-700"
+            disabled={isSaving}
+            className="rounded bg-primary-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-primary-400"
           >
             Mark all Present
           </button>
         </div>
       </div>
+
+      {errorMessage && (
+        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          {errorMessage}
+        </div>
+      )}
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <table className="min-w-full text-sm">
@@ -221,11 +291,12 @@ export const AttendanceTakePage = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {filteredEmployees.map((emp, idx) => {
+            {(filteredEmployees ?? []).map((emp, idx) => {
               const att = attendance[emp.id]
               const currentStatus = att?.status
               const presentSelected = currentStatus === 'present'
               const timeValue = att?.start_time ?? ''
+              const timeValueForInput = timeValue ? timeValue.slice(0, 5) : ''
               return (
                 <tr key={emp.id} className="hover:bg-slate-50">
                   <td className="px-3 py-2 font-medium text-slate-700">{idx + 1}</td>
@@ -244,6 +315,7 @@ export const AttendanceTakePage = () => {
                                 saveAttendance(emp.id, s, null)
                               }
                             }}
+                            disabled={isSaving}
                             className={`flex h-8 w-8 items-center justify-center rounded-md text-xs font-bold transition ${cfg.className} ${
                               currentStatus === s ? 'ring-2 ring-primary-400' : ''
                             }`}
@@ -257,7 +329,7 @@ export const AttendanceTakePage = () => {
                   <td className="px-3 py-2">
                     <input
                       type="time"
-                      value={timeValue}
+                      value={timeValueForInput}
                       onFocus={(e) => {
                         if (!e.target.value) e.target.value = roundedNow()
                       }}
@@ -277,7 +349,8 @@ export const AttendanceTakePage = () => {
                           saveAttendance(emp.id, 'present', e.target.value)
                         }
                       }}
-                      className="w-28 rounded border border-slate-200 px-2 py-1 text-sm"
+                      disabled={isSaving}
+                      className="w-28 rounded border border-slate-200 px-2 py-1 text-sm disabled:cursor-not-allowed disabled:bg-slate-100"
                     />
                     <div className="text-xs text-slate-500">{formatAMLabel(timeValue)}</div>
                   </td>
@@ -324,9 +397,10 @@ export const AttendanceTakePage = () => {
               </button>
               <button
                 onClick={markAllPresent}
-                className="rounded-md bg-primary-600 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-700"
+                disabled={isSaving}
+                className="rounded-md bg-primary-600 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-primary-400"
               >
-                Save
+                {isSaving ? 'Saving...' : 'Save'}
               </button>
             </div>
           </div>
