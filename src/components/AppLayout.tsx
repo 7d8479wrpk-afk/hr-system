@@ -9,11 +9,21 @@ export const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement | null>(null)
 
-  const navItems = [
+  const desktopNavItems = [
     { to: '/employees', label: 'Employees' },
     { to: '/attendance', label: 'Attendance' },
     { to: '/terminated', label: 'Terminated' },
   ]
+  const mobileNavItems = [
+    { to: '/employees', label: 'Employees' },
+    { to: '/employees/new', label: 'Add Employee', exact: true },
+    { to: '/attendance', label: 'Attendance' },
+    { to: '/attendance/take', label: 'Take Attendance', exact: true },
+    { to: '/terminated', label: 'Terminated', exact: true },
+  ]
+
+  const isActive = (item: { to: string; exact?: boolean }) =>
+    item.exact ? location.pathname === item.to : location.pathname.startsWith(item.to)
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -25,6 +35,10 @@ export const AppLayout = ({ children }: { children: React.ReactNode }) => {
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
+  useEffect(() => {
+    setMenuOpen(false)
+  }, [location.pathname])
+
   return (
     <div className="min-h-screen bg-white text-slate-900">
       <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/90 backdrop-blur">
@@ -35,14 +49,12 @@ export const AppLayout = ({ children }: { children: React.ReactNode }) => {
               HR Console
             </Link>
             <nav className="hidden gap-4 text-sm font-medium text-slate-600 sm:flex">
-              {navItems.map((item) => (
+              {desktopNavItems.map((item) => (
                 <Link
                   key={item.to}
                   to={item.to}
                   className={`rounded-md px-3 py-2 transition hover:text-primary-700 ${
-                    location.pathname.startsWith(item.to)
-                      ? 'bg-primary-50 text-primary-700'
-                      : ''
+                    isActive(item) ? 'bg-primary-50 text-primary-700' : ''
                   }`}
                 >
                   {item.label}
@@ -65,26 +77,31 @@ export const AppLayout = ({ children }: { children: React.ReactNode }) => {
             <button
               onClick={() => setMenuOpen((prev) => !prev)}
               className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-200 text-slate-700 sm:hidden"
-              aria-label="Menu"
+              aria-controls="mobile-menu"
+              aria-expanded={menuOpen}
+              aria-label={menuOpen ? 'Close menu' : 'Open menu'}
             >
-              ☰
+              <span className="flex flex-col gap-1" aria-hidden="true">
+                <span className="h-0.5 w-5 rounded bg-slate-700" />
+                <span className="h-0.5 w-5 rounded bg-slate-700" />
+                <span className="h-0.5 w-5 rounded bg-slate-700" />
+              </span>
             </button>
           </div>
         </div>
         <div
           ref={menuRef}
+          id="mobile-menu"
           className={`sm:hidden ${menuOpen ? 'block' : 'hidden'} border-t border-slate-200 bg-white shadow-md`}
         >
           <nav className="flex flex-col gap-1 px-4 py-3 text-sm font-medium text-slate-700">
-            {navItems.map((item) => (
+            {mobileNavItems.map((item) => (
               <Link
                 key={item.to}
                 to={item.to}
                 onClick={() => setMenuOpen(false)}
                 className={`rounded-md px-3 py-2 transition hover:bg-primary-50 hover:text-primary-700 ${
-                  location.pathname.startsWith(item.to)
-                    ? 'bg-primary-50 text-primary-700'
-                    : ''
+                  isActive(item) ? 'bg-primary-50 text-primary-700' : ''
                 }`}
               >
                 {item.label}
